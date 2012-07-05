@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+ifeq ($(TARGET_BOARD_PLATFORM),cottoncandy)
 LOCAL_PATH := $(call my-dir)
 
 # HAL module implemenation, not prelinked and stored in
@@ -23,35 +23,26 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-
-MALI_DDK_PATH := hardware/arm/mali
-
-LOCAL_MODULE := gralloc.default
-#LOCAL_MODULE_TAGS := optional
-
-# Which DDK are we building for?
-ifneq (,$(wildcard $(MALI_DDK_PATH)/ump/))
-# Mali-T6xx DDK
-LOCAL_SHARED_LIBRARIES := liblog libcutils libGLESv1_CM libGLES_mali
-
-# All include files are accessed from the DDK root
-LOCAL_C_INCLUDES := $(MALI_DDK_PATH) $(MALI_DDK_PATH)/kernel/drivers/gpu/arm
-
-LOCAL_CFLAGS:= -DLOG_TAG=\"gralloc\" -DGRALLOC_16_BITS -DSTANDARD_LINUX_SCREEN
-else
-# Mali-200/300/400MP DDK
-LOCAL_SHARED_LIBRARIES := liblog libcutils libMali libGLESv1_CM libUMP
+# libMali will be installed post build
+#LOCAL_SHARED_LIBRARIES := liblog libcutils libMali libGLESv1_CM libUMP
+LOCAL_SHARED_LIBRARIES := liblog libcutils libGLESv1_CM libUMP
+LOCAL_CFLAGS := -fpermissive
 
 # Include the UMP header files
-LOCAL_C_INCLUDES := $(MALI_DDK_PATH)/src/ump/include
-
-LOCAL_CFLAGS:= -DLOG_TAG=\"gralloc\" -DGRALLOC_32_BITS -DSTANDARD_LINUX_SCREEN
-endif
+LOCAL_C_INCLUDES := hardware/fxi/cottoncandy/ump/include
 
 LOCAL_SRC_FILES := \
 	gralloc_module.cpp \
 	alloc_device.cpp \
 	framebuffer_device.cpp
 
+LOCAL_MODULE := gralloc.cottoncandy
+LOCAL_MODULE_TAGS := eng
+LOCAL_CFLAGS:= -DLOG_TAG=\"gralloc_ump\" -DGRALLOC_32_BITS -DSTANDARD_LINUX_SCREEN -fpermissive
+ifeq ($(BOARD_HAVE_CODEC_SUPPORT),SAMSUNG_CODEC_SUPPORT)
+LOCAL_CFLAGS     += -DSAMSUNG_CODEC_SUPPORT
+LOCAL_C_INCLUDES += frameworks/base/media/libstagefright/include
+endif
 #LOCAL_CFLAGS+= -DMALI_VSYNC_EVENT_REPORT_ENABLE
 include $(BUILD_SHARED_LIBRARY)
+endif
