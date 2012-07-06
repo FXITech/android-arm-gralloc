@@ -91,6 +91,7 @@ static int fb_post(struct framebuffer_device_t* dev, buffer_handle_t buffer)
 			return 0;
 		}
 
+#if 0
                 // enable VSYNC
                 interrupt = 1;
                 if(ioctl(m->framebuffer->fd, S3CFB_SET_VSYNC_INT, &interrupt) < 0) 
@@ -98,6 +99,8 @@ static int fb_post(struct framebuffer_device_t* dev, buffer_handle_t buffer)
                     LOGE("S3CFB_SET_VSYNC_INT enable failed");
                     return 0;
                 }
+#endif
+
                 // wait for VSYNC
 #ifdef MALI_VSYNC_EVENT_REPORT_ENABLE
 		gralloc_mali_vsync_report(MALI_VSYNC_EVENT_BEGIN_WAIT);
@@ -114,6 +117,8 @@ static int fb_post(struct framebuffer_device_t* dev, buffer_handle_t buffer)
 #ifdef MALI_VSYNC_EVENT_REPORT_ENABLE
 		gralloc_mali_vsync_report(MALI_VSYNC_EVENT_END_WAIT);
 #endif
+
+#if 0
                 // disable VSYNC
                 interrupt = 0;
                 if(ioctl(m->framebuffer->fd, S3CFB_SET_VSYNC_INT, &interrupt) < 0) 
@@ -121,6 +126,8 @@ static int fb_post(struct framebuffer_device_t* dev, buffer_handle_t buffer)
                     LOGE("S3CFB_SET_VSYNC_INT disable failed");
                     return 0;
                 }
+#endif 
+
 #else 
 		/*Standard Android way*/
 #ifdef MALI_VSYNC_EVENT_REPORT_ENABLE
