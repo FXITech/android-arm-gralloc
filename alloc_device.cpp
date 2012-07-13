@@ -32,12 +32,10 @@
 
 #include <ump/ump.h>
 #include <ump/ump_ref_drv.h>
-
-#define GRALLOC_ALIGN( value, base ) (((value) + ((base) - 1)) & ~((base) - 1))
+#include <ColorFormat.h>
 
 #if GRALLOC_SIMULATE_FAILURES
 #include <cutils/properties.h>
-
 /* system property keys for controlling simulated UMP allocation failures */
 #define PROP_MALI_TEST_GRALLOC_FAIL_FIRST     "mali.test.gralloc.fail_first"
 #define PROP_MALI_TEST_GRALLOC_FAIL_INTERVAL  "mali.test.gralloc.fail_interval"
@@ -49,13 +47,13 @@ static int __ump_alloc_should_fail()
 	unsigned int        first_fail  = 0;
 	int                 fail_period = 0;
 	int                 fail        = 0;
-	
+
 	++call_count;
 
-	/* read the system properties that control failure simulation */	
+	/* read the system properties that control failure simulation */
 	{
 		char prop_value[PROPERTY_VALUE_MAX];
-		
+
 		if (property_get(PROP_MALI_TEST_GRALLOC_FAIL_FIRST, prop_value, "0") > 0)
 		{
 			sscanf(prop_value, "%u", &first_fail);
@@ -71,11 +69,11 @@ static int __ump_alloc_should_fail()
 	if (first_fail > 0)
 	{
 		LOGI("iteration %u (fail=%u, period=%u)\n", call_count, first_fail, fail_period);
-		
+
 		fail = 	(call_count == first_fail) ||
 				(call_count > first_fail && fail_period > 0 && 0 == (call_count - first_fail) % fail_period);
-		
-		if (fail) 
+
+		if (fail)
 		{
 			LOGE("failed ump_ref_drv_allocate on iteration #%d\n", call_count);
 		}
@@ -83,7 +81,6 @@ static int __ump_alloc_should_fail()
 	return fail;
 }
 #endif
-
 
 static int gralloc_alloc_buffer(alloc_device_t* dev, size_t size, int usage, buffer_handle_t* pHandle)
 {
@@ -148,7 +145,7 @@ static int gralloc_alloc_buffer(alloc_device_t* dev, size_t size, int usage, buf
 	}
 	else
 	{
-		LOGE("gralloc_alloc_buffer() failed to allocate UMP memory");
+		LOGE("gralloc_alloc_buffer() failed to allcoate UMP memory, Requested Size: %d", size);
 	}
 
 	return -1;
@@ -224,47 +221,71 @@ static int alloc_device_alloc(alloc_device_t* dev, int w, int h, int format, int
 		return -EINVAL;
 	}
 
-	size_t size;
-	size_t stride;
-	if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP || format == HAL_PIXEL_FORMAT_YV12 ) 
-	{
-		switch (format)
-		{
-			case HAL_PIXEL_FORMAT_YCrCb_420_SP:
-			case HAL_PIXEL_FORMAT_YV12:
-				stride = GRALLOC_ALIGN(w, 16);
-				size = h * (stride + GRALLOC_ALIGN(stride/2,16));
+	size_t size = 0;
+	size_t stride = 0;
+	size_t stride_raw = 0;
 
+	if (format == HAL_PIXEL_FORMAT_YCbCr_420_SP ||
+		format == HAL_PIXEL_FORMAT_YCrCb_420_SP ||
+		format == HAL_PIXEL_FORMAT_YCbCr_422_SP ||
+		format == HAL_PIXEL_FORMAT_YCbCr_420_P  ||
+		format == HAL_PIXEL_FORMAT_YV12 ||
+		format == HAL_PIXEL_FORMAT_CUSTOM_YCrCb_420_SP ||
+		format == HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_SP_TILED ||
+		format == HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_SBS_LR ||
+		format == HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_SBS_RL ||
+		format == HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_TB_LR ||
+		format == HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_TB_RL) {
+		/* FIXME: there is no way to return the vstride */
+		int vstride;
+		stride = (w + 15) & ~15;
+		vstride = (h + 15) & ~15;
+		switch (format) {
+			case HAL_PIXEL_FORMAT_YCbCr_420_SP:
+			case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+			case HAL_PIXEL_FORMAT_YCbCr_420_P:
+			case HAL_PIXEL_FORMAT_YV12:
+			case HAL_PIXEL_FORMAT_CUSTOM_YCrCb_420_SP:
+			case HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_SP_TILED:
+			case HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_SBS_LR:
+			case HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_SBS_RL:
+			case HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_TB_LR:
+			case HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_P_TB_RL:
+				size = stride * vstride * 2;
+				if(usage & GRALLOC_USAGE_HW_FIMC1)
+					size += PAGE_SIZE * 2;
+				break;
+			case HAL_PIXEL_FORMAT_YCbCr_422_SP:
+				size = (stride * vstride) + (w/2 * h/2) * 2;
 				break;
 			default:
 				return -EINVAL;
 		}
-	}
-	else
-	{
+    	} else {
 		int align = 8;
 		int bpp = 0;
-		switch (format)
-		{
-		case HAL_PIXEL_FORMAT_RGBA_8888:
-		case HAL_PIXEL_FORMAT_RGBX_8888:
-		case HAL_PIXEL_FORMAT_BGRA_8888:
-			bpp = 4;
-			break;
-		case HAL_PIXEL_FORMAT_RGB_888:
-			bpp = 3;
-			break;
-		case HAL_PIXEL_FORMAT_RGB_565:
-		case HAL_PIXEL_FORMAT_RGBA_5551:
-		case HAL_PIXEL_FORMAT_RGBA_4444:
-			bpp = 2;
-			break;
-		default:
-			return -EINVAL;
+		switch (format) {
+			case HAL_PIXEL_FORMAT_RGBA_8888:
+			case HAL_PIXEL_FORMAT_RGBX_8888:
+			case HAL_PIXEL_FORMAT_BGRA_8888:
+				bpp = 4;
+				break;
+			case HAL_PIXEL_FORMAT_RGB_888:
+				bpp = 3;
+				break;
+			case HAL_PIXEL_FORMAT_RGB_565:
+			case HAL_PIXEL_FORMAT_RGBA_5551:
+			case HAL_PIXEL_FORMAT_RGBA_4444:
+				bpp = 2;
+				break;
+			default:
+				return -EINVAL;
 		}
+
 		size_t bpr = (w*bpp + (align-1)) & ~(align-1);
 		size = bpr * h;
 		stride = bpr / bpp;
+		stride_raw = bpr;
 	}
 
 	int err;
