@@ -99,6 +99,9 @@ static int gralloc_alloc_buffer(alloc_device_t* dev, size_t size, int usage, buf
 	{
 		constraints = UMP_REF_DRV_CONSTRAINT_NONE;
 	}
+	if (usage & GRALLOC_USAGE_HW_FIMC1) {
+		constraints |= UMP_REF_DRV_CONSTRAINT_PHYSICALLY_LINEAR;
+	}
 
 #ifdef GRALLOC_SIMULATE_FAILURES
 	/* if the failure condition matches, fail this iteration */
