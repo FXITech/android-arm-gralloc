@@ -337,7 +337,7 @@ int init_frame_buffer_locked(struct private_module_t* module)
 		return -errno;
 	}
 
-    if (finfo.smem_len <= 0)
+	if (finfo.smem_len <= 0)
 	{
 		return -errno;
 	}
@@ -380,6 +380,83 @@ static int init_frame_buffer(struct private_module_t* module)
 	return err;
 }
 
+static int check_file_exist(const char *filename)
+{
+	int fd = open(filename, O_RDWR, 0);
+	if (fd == -1)
+	{
+		return 0;  // file does not exist
+	}
+	
+	close(fd);
+	return 1;  // File does exist
+}
+
+static int set_fb_resolution_locked(struct private_module_t *module)
+{
+	char const * const device_template[] =
+	{
+		"/dev/graphics/fb%u",
+		"/dev/fb%u",
+		NULL
+	};
+
+	int fd = -1;
+	int i = 0;
+	char name[64];
+	int ret = 0;
+
+	while ((fd == -1) && device_template[i])
+	{
+		snprintf(name, 64, device_template[i], 0);
+		fd = open(name, O_RDWR, 0);
+		i++;
+	}
+
+	if (fd < 0)
+	{
+		return -errno;
+	}
+
+	if (check_file_exist("/.720p_59.94Hz"))
+	{
+		/* Wants 720p @ 59.94Hz */
+		struct fb_var_screeninfo info;
+		info.xres = 1280;
+		info.yres = 720;
+
+		if (ioctl(fd, FBIOPUT_VSCREENINFO, &info) < 0)
+		{
+			LOGE("Failed to set framebuffer %dx%d", info.xres, info.yres);
+			ret = -1;
+		}
+	} else if (check_file_exist("/.1080p_60Hz"))
+	{
+		/* Wants 1080p @ 60Hz */
+		struct fb_var_screeninfo info;
+		info.xres = 1920;
+		info.yres = 1080;
+
+		if (ioctl(fd, FBIOPUT_VSCREENINFO, &info) < 0)
+		{
+			LOGE("Failed to set framebuffer %dx%d", info.xres, info.yres);
+			ret = -1;
+		}
+	}
+
+	close(fd);
+
+	return ret;
+}
+
+static int set_fb_resolution(struct private_module_t *module)
+{
+	pthread_mutex_lock(&module->lock);
+	int err = set_fb_resolution_locked(module);
+	pthread_mutex_lock(&module->lock);
+	return err;
+}
+
 static int fb_close(struct hw_device_t *device)
 {
 	framebuffer_device_t* dev = reinterpret_cast<framebuffer_device_t*>(device);
@@ -413,6 +490,7 @@ int compositionComplete(struct framebuffer_device_t* dev)
 int framebuffer_device_open(hw_module_t const* module, const char* name, hw_device_t** device)
 {
 	int status = -EINVAL;
+	private_module_t* m = (private_module_t*)module;
 
 	alloc_device_t* gralloc_device;
 	status = gralloc_open(module, &gralloc_device);
@@ -421,7 +499,13 @@ int framebuffer_device_open(hw_module_t const* module, const char* name, hw_devi
 		return status;
 	}
 
-	private_module_t* m = (private_module_t*)module;
+	/* Hack to allow selection of fb size */
+	status = set_fb_resolution(m);
+	if (status < 0)
+	{
+		LOGW("set_fb_resolution() returned %d", status);
+	}
+
 	status = init_frame_buffer(m);
 	if (status < 0)
 	{
