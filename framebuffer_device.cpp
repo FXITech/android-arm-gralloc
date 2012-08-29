@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <linux/fb.h>
+#include <unistd.h>
 
 #include <cutils/log.h>
 #include <cutils/atomic.h>
@@ -382,14 +383,7 @@ static int init_frame_buffer(struct private_module_t* module)
 
 static int check_file_exist(const char *filename)
 {
-	int fd = open(filename, O_RDWR, 0);
-	if (fd == -1)
-	{
-		return 0;  // file does not exist
-	}
-	
-	close(fd);
-	return 1;  // File does exist
+	return !access(filename, F_OK);
 }
 
 static int set_fb_resolution_locked(struct private_module_t *module)
@@ -453,7 +447,7 @@ static int set_fb_resolution(struct private_module_t *module)
 {
 	pthread_mutex_lock(&module->lock);
 	int err = set_fb_resolution_locked(module);
-	pthread_mutex_lock(&module->lock);
+	pthread_mutex_unlock(&module->lock);
 	return err;
 }
 
