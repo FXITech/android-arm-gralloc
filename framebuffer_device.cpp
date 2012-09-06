@@ -399,6 +399,8 @@ static int set_fb_resolution_locked(struct private_module_t *module)
 	int i = 0;
 	char name[64];
 	int ret = 0;
+	int resnum = -1;
+	FILE *resfile;
 
 	while ((fd == -1) && device_template[i])
 	{
@@ -412,32 +414,44 @@ static int set_fb_resolution_locked(struct private_module_t *module)
 		return -errno;
 	}
 
-	if (check_file_exist("/.720p_59.94Hz"))
-	{
-		/* Wants 720p @ 59.94Hz */
-		struct fb_var_screeninfo info;
+	struct fb_var_screeninfo info;
+
+	if(!check_file_exist("/data/fxi/config/resolution")){
 		info.xres = 1280;
 		info.yres = 720;
+		LOGE("Frambuffer_res: No resolution file. Defaulting to 720p");
+	} else {
+		resfile = fopen("/data/fxi/config/resolution", "r");
 
-		if (ioctl(fd, FBIOPUT_VSCREENINFO, &info) < 0)
+		fscanf(resfile, "%d", &resnum);
+		LOGE("Framebuffer_res: resnum = %d", resnum);
+
+		switch(resnum)
 		{
-			LOGE("Failed to set framebuffer %dx%d", info.xres, info.yres);
-			ret = -1;
+			case 0:
+			info.xres = 1280;
+			info.yres = 720;
+			break;
+		
+			case 1:
+			info.xres = 1920;
+			info.yres = 1080;
+			break;
+
+			default:
+			LOGE("Framebuffer_res: invalid resolution wanted, selecting 720p");
+			info.xres = 1280;
+			info.yres = 720;
+			break;
 		}
-	} else if (check_file_exist("/.1080p_60Hz"))
+	}		
+
+	if(ioctl(fd, FBIOPUT_VSCREENINFO, &info) < 0)
 	{
-		/* Wants 1080p @ 60Hz */
-		struct fb_var_screeninfo info;
-		info.xres = 1920;
-		info.yres = 1080;
-
-		if (ioctl(fd, FBIOPUT_VSCREENINFO, &info) < 0)
-		{
-			LOGE("Failed to set framebuffer %dx%d", info.xres, info.yres);
-			ret = -1;
-		}
+		LOGE("Failed to set framebuffer %dx%d", info.xres, info.yres);
+		ret = -1;
 	}
-
+		
 	close(fd);
 
 	return ret;
