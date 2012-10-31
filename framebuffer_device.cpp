@@ -130,8 +130,8 @@ static int fb_post(struct framebuffer_device_t* dev, buffer_handle_t buffer)
 				AERR( "S3CFB_SET_VSYNC_INT disable failed for fd: %d", m->framebuffer->fd );
 				return 0;
 			}
-		}
 #endif
+		}
 
 
 #else
